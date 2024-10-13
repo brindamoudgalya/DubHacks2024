@@ -9,19 +9,20 @@ predictor = dlib.shape_predictor("shape_predictor_68_face_landmarks.dat")
 
 def detect_fatigue(landmarks):
     """Detect if the user is yawning or looking down."""
-    mouth = landmarks[61:68]
+    mouth = landmarks[48:60]  # Corrected mouth region
     left_eye = landmarks[36:42]
     right_eye = landmarks[42:48]
 
-    mouth_height = np.linalg.norm(mouth[3] - mouth[9])
-    mouth_width = np.linalg.norm(mouth[0] - mouth[6])
+    # Use the correct indices for mouth height and width
+    mouth_height = np.linalg.norm(mouth[3] - mouth[9])  # From 51 (top) to 57 (bottom)
+    mouth_width = np.linalg.norm(mouth[0] - mouth[6])   # From 48 (left corner) to 54 (right corner)
     yawn_ratio = mouth_height / mouth_width
 
-    eye_height = np.mean([
+    eye_height = np.mean([  # Height of eyes (vertical)
         np.linalg.norm(left_eye[1] - left_eye[5]),
         np.linalg.norm(right_eye[1] - right_eye[5])
     ])
-    eye_width = np.mean([
+    eye_width = np.mean([  # Width of eyes (horizontal)
         np.linalg.norm(left_eye[0] - left_eye[3]),
         np.linalg.norm(right_eye[0] - right_eye[3])
     ])
