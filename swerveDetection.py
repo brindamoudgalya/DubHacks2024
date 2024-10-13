@@ -29,6 +29,7 @@ def process_frame(frame):
     left_lane_x = []
     right_lane_x = []
     lane_offset_threshold = 70  # Threshold for swerving detection
+    swerving_detected = False  # Flag to track swerving detection
 
     if lines is not None:
         for line in lines:
@@ -52,6 +53,7 @@ def process_frame(frame):
         lane_offset = car_position - lane_center
         if abs(lane_offset) > lane_offset_threshold:
             direction = "left" if lane_offset > 0 else "right"
+            swerving_detected = True  # Swerving detected
             cv2.putText(frame, f"Swerving Detected: Moving too far {direction}!", 
                         (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
         else:
@@ -65,4 +67,4 @@ def process_frame(frame):
         cv2.putText(frame, "No lane lines detected", 
                     (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 2)
     
-    return frame
+    return frame, swerving_detected
