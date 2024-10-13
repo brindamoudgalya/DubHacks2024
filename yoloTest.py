@@ -1,5 +1,3 @@
-# alex's test video path: /Users/alexjshepler/Hackathons/DubHacks2024/videos/NoAudio/GRMN0105.MP4
-
 from ultralytics import YOLO
 import cv2
 from swerveDetection import process_frame
@@ -8,7 +6,6 @@ from swerveDetection import process_frame
 model = YOLO("yolo11n.pt")
 
 # Define a class label mapping for COCO-like dataset (adjust based on your model)
-# Modify this list according to your model's specific classes
 class_names = {
     0: "Person",
     1: "Bicycle",
@@ -20,10 +17,13 @@ class_names = {
 }
 
 # Path to video
-video_path = "../NoSwerveDriving.MP4"
+video_path = "../TestDrivingVideo.MP4"
 
 # Open video capture
 cap = cv2.VideoCapture(video_path)
+
+# Store past lane center values for smoothing
+previous_lane_centers = []
 
 while cap.isOpened():
     ret, frame = cap.read()
@@ -50,13 +50,18 @@ while cap.isOpened():
             cv2.putText(frame, f"{label} ({conf:.2f})", (x1, y1 - 10),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
 
-            # You can also differentiate between vehicles here, if applicable
+            # Optionally differentiate between vehicles here, if applicable
             if label == "Vehicle":
                 cv2.putText(frame, "Detected: Vehicle", (x1, y2 + 30),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
 
-    # After YOLO detection, apply lane detection and swerving feedback
+    # Apply lane detection and swerving feedback after YOLO detection
     frame = process_frame(frame)
+
+    # Smooth lane detection by averaging past lane centers (use max 5 frames)
+    previous_lane_centers.append(frame)
+    if len(previous_lane_centers) > 5:
+        previous_lane_centers.pop(0)
 
     # Display the frame with YOLO and lane detection results
     cv2.imshow('Swerving Detection & YOLO', frame)
