@@ -2,27 +2,38 @@ import pyrealsense2 as rs
 import numpy as np
 import cv2
 import dlib
+import serial
+import time
 
 # Initialize dlib's face detector and shape predictor
 detector = dlib.get_frontal_face_detector()
 predictor = dlib.shape_predictor("shape_predictor_68_face_landmarks.dat")
 
+# Replace 'COM3' with your Arduino's correct port (e.g., 'COM4' on Windows or '/dev/ttyUSB0' on Linux/Mac)
+try:
+    arduino = serial.Serial('COM3', 9600, timeout=1)
+    time.sleep(2)  # Allow time for the serial connection to initialize
+    print("Connected to Arduino")
+except serial.SerialException as e:
+    print(f"Error: Could not connect to Arduino - {e}")
+    exit()
+
 def detect_fatigue(landmarks):
     """Detect if the user is yawning or looking down."""
-    mouth = landmarks[48:60]  # Corrected mouth region
+    mouth = landmarks[48:60]
     left_eye = landmarks[36:42]
     right_eye = landmarks[42:48]
 
-    # Use the correct indices for mouth height and width
-    mouth_height = np.linalg.norm(mouth[3] - mouth[9])  # From 51 (top) to 57 (bottom)
-    mouth_width = np.linalg.norm(mouth[0] - mouth[6])   # From 48 (left corner) to 54 (right corner)
+    # Calculate mouth and eye metrics for yawning and looking down detection
+    mouth_height = np.linalg.norm(mouth[3] - mouth[9])
+    mouth_width = np.linalg.norm(mouth[0] - mouth[6])
     yawn_ratio = mouth_height / mouth_width
 
-    eye_height = np.mean([  # Height of eyes (vertical)
+    eye_height = np.mean([
         np.linalg.norm(left_eye[1] - left_eye[5]),
         np.linalg.norm(right_eye[1] - right_eye[5])
     ])
-    eye_width = np.mean([  # Width of eyes (horizontal)
+    eye_width = np.mean([
         np.linalg.norm(left_eye[0] - left_eye[3]),
         np.linalg.norm(right_eye[0] - right_eye[3])
     ])
@@ -32,6 +43,23 @@ def detect_fatigue(landmarks):
     is_looking_down = gaze_ratio < 0.2
 
     return is_yawning, is_looking_down
+
+def send_down(looking_down):
+    try:
+        signal = '2' if looking_down else '0'
+        arduino.write(signal.encode())
+        print(f"Sent signal: {signal}")
+    except serial.SerialException as e:
+        print(f"Error sending signal: {e}")
+
+def send_yawn(is_yawning):
+    """Send '1' to Arduino if yawning, '0' otherwise."""
+    try:
+        signal = '1' if is_yawning else '0'
+        arduino.write(signal.encode())
+        print(f"Sent signal: {signal}")
+    except serial.SerialException as e:
+        print(f"Error sending signal: {e}")
 
 # Set up RealSense camera
 pipeline = rs.pipeline()
@@ -59,9 +87,13 @@ try:
                 landmarks = predictor(gray, face)
                 landmarks_np = np.array([[p.x, p.y] for p in landmarks.parts()])
 
+                # Detect yawning and send signal to Arduino
                 yawn, look_down = detect_fatigue(landmarks_np)
-                status = "Yawning" if yawn else "Looking Down" if look_down else "Alert"
+                send_yawn(yawn)
+                send_down(look_down)
 
+                # Display bounding box and yawning status on screen
+                status = "Yawning" if yawn else "Sleeping or looking down" if look_down else "Alert"
                 cv2.rectangle(frame, (face.left(), face.top()), (face.right(), face.bottom()), (0, 255, 0), 2)
                 cv2.putText(frame, status, (face.left(), face.top() - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
 
@@ -76,5 +108,6 @@ try:
 
 finally:
     pipeline.stop()
+    arduino.close()
     cv2.destroyAllWindows()
-    print("Camera pipeline stopped.")
+    print("Camera pipeline and Arduino connection closed.")
